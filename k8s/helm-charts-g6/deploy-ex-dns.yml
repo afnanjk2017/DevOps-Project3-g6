@@ -1,0 +1,31 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: external-dns
+  namespace: kube-system
+spec:
+  chart: external-dns
+  repo: https://charts.bitnami.com/bitnami
+  targetNamespace: kube-system
+  valuesContent: |-
+    provider: azure
+  
+    azure:
+      tenantId: "<TENANT_ID>"
+      subscriptionId: "<SUBSCRIPTION_ID>"
+      resourceGroup: "<DNS_RESOURCE_GROUP>"
+      aadClientId: "<CLIENT_ID>"
+      aadClientSecret: "<CLIENT_SECRET>"
+
+    # RBAC
+    serviceAccount:
+      create: false
+      name: external-dns
+
+    policy: sync
+    txtOwnerId: aks-norah-g6
+    sources:
+      - ingress
+    domainFilters: []
+    interval: 1m
+    logLevel: info

@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=https://json.schemastore.org/helmfile
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  chart: prometheus
+  repo: https://charts.bitnami.com/bitnami
+  targetNamespace: monitoring
+  valuesContent: |-
+    serviceAccount:
+      create: true
+      name: prometheus-sa
+
+    rbac:
+      create: true
+
+    alertmanager:
+      enabled: false
+
+    pushgateway:
+      enabled: false
+
+    server:
+      service:
+        type: ClusterIP
+      persistentVolume:
+        enabled: false
+      extraScrapeConfigs: |
+        - job_name: 'prometheus'
+          static_configs:
+            - targets: ['localhost:9090']
+
+        - job_name: 'backend-app'
+          metrics_path: '/actuator/prometheus'
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              regex: backend
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_number]
+              target_label: __metrics_port__
+
+        - job_name: 'frontend-app'
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              regex: frontend
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_number]
+              target_label: __metrics_port__

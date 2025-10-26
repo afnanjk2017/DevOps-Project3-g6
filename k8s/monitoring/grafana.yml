@@ -1,0 +1,110 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  chart: grafana
+  repo: https://charts.bitnami.com/bitnami
+  targetNamespace: monitoring
+  valuesContent: |-
+    serviceAccount:
+      create: true
+      name: grafana-sa
+
+    adminUser: admin
+    adminPassword: admin123
+
+    datasources:
+      config:
+        apiVersion: 1
+        datasources:
+          - name: Prometheus
+            type: prometheus
+            url: http://prometheus-server.monitoring.svc.cluster.local
+            access: proxy
+            isDefault: true
+
+    dashboards:
+      default:
+        backend-metrics:
+          json: |
+            {
+              "title": "Backend API Performance",
+              "panels": [
+                {
+                  "type": "graph",
+                  "title": "API Latency (avg 95%)",
+                  "targets": [
+                    {
+                      "expr": "rate(http_server_requests_seconds_sum[5m]) / rate(http_server_requests_seconds_count[5m])",
+                      "legendFormat": "avg latency (s)"
+                    }
+                  ]
+                },
+                {
+                  "type": "graph",
+                  "title": "Error Rate (5xx)",
+                  "targets": [
+                    {
+                      "expr": "rate(http_server_requests_seconds_count{status=~\"5..\"}[5m])",
+                      "legendFormat": "errors/sec"
+                    }
+                  ]
+                },
+                {
+                  "type": "graph",
+                  "title": "Request Rate (RPS)",
+                  "targets": [
+                    {
+                      "expr": "rate(http_server_requests_seconds_count[1m])",
+                      "legendFormat": "req/s"
+                    }
+                  ]
+                }
+              ]
+            }
+        cluster-health:
+          json: |
+            {
+              "title": "Cluster Node & Pod Health",
+              "panels": [
+                {
+                  "type": "graph",
+                  "title": "Pod CPU Usage",
+                  "targets": [
+                    {
+                      "expr": "rate(container_cpu_usage_seconds_total[1m])",
+                      "legendFormat": "{{pod}}"
+                    }
+                  ]
+                },
+                {
+                  "type": "graph",
+                  "title": "Pod Memory Usage (MiB)",
+                  "targets": [
+                    {
+                      "expr": "container_memory_usage_bytes/1024/1024",
+                      "legendFormat": "{{pod}}"
+                    }
+                  ]
+                },
+                {
+                  "type": "graph",
+                  "title": "HPA Replicas Over Time",
+                  "targets": [
+                    {
+                      "expr": "kube_deployment_status_replicas{deployment=~\"backend|frontend\"}",
+                      "legendFormat": "{{deployment}}"
+                    }
+                  ]
+                }
+              ]
+            }
+
+    service:
+      type: LoadBalancer
+      port: 3000
+
+    persistence:
+      enabled: false
