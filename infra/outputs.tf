@@ -1,7 +1,11 @@
-output "agw_ips" {
-  value = module.appgw.agw_ip
-}
 
-output "websites_fqdns" {
-  value = [module.appservice.fe_app_fqdn, module.appservice.be_app_fqdn]
+/* output "kube_config" {
+  value = module.aks.kube_config
+
+  sensitive = true
 }
+output "aks_name" {
+  description = "AKS Cluster name"
+  value       = module.aks.aks_name
+}
+ */

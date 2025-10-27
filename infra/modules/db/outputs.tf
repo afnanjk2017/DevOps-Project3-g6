@@ -1,4 +1,4 @@
-output "db_id" {
+/* output "db_id" {
   value = azurerm_mssql_database.products_db.id
 }
 output "db_server" {
@@ -18,6 +18,6 @@ output "db_password" {
   sensitive = true
 }
 output "mssql_server_name" {
-  # Hmmmm
+ 
   value = azurerm_mssql_server.products_db_server.name
-}
+} */

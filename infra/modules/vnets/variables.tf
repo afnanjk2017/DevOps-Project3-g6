@@ -16,3 +16,16 @@ variable "resource_prefix" {
   description = "Prefix for resources"
   default     = "devops-tf"
 }
+variable "vnet_name" {
+  description = "Virtual Network name"
+  type        = string
+  default     = "vnet-grp3"
+}
+
+variable "vnet_cidr" {
+  description = "Address space for the VNet"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+
