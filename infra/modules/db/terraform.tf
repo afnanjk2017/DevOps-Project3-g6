@@ -11,10 +11,10 @@ resource "azurerm_mssql_server" "sql" {
 }
 
 resource "azurerm_mssql_database" "sqldb" {
-  name      = "g6-db-project3"
-  server_id = azurerm_mssql_server.sql.id
-  sku_name  = "S0"
-
+  name                 = "g6-db-project3"
+  server_id            = azurerm_mssql_server.sql.id
+  sku_name             = "S0"
+  storage_account_type = "Local"
 }
 
 # Private DNS Zone
