@@ -8,7 +8,7 @@ variable "db_password" {
   type        = string
   sensitive   = true
   description = "Password for the MSSQL Database"
-  default     = "OPcvb321-6578ghM"
+
 }
 variable "author" {
   type        = string
