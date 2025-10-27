@@ -31,8 +31,8 @@ jobs:
       - name: Connect to AKS Cluster
         run: |
           az aks get-credentials \
-            --resource-group ${{ steps.aks_output.outputs.rg_name }} \
-            --name ${{ steps.aks_output.outputs.aks_name }} \
+            --resource-group project3-g6-devops \
+            --name group6--aks-cluster \
             --overwrite-existing
 
       - name: Deploy manifests
