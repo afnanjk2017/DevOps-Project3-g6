@@ -7,7 +7,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   default_node_pool {
     name                        = var.default_node_pool_name
-    node_count                  = 2
     vm_size                     = var.vm_size
     vnet_subnet_id              = var.aks_subnet
     temporary_name_for_rotation = "userrot"
