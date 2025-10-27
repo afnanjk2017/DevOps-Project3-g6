@@ -8,3 +8,7 @@ output "kube_config" {
 
   sensitive = true
 }
+output "aks_name" {
+  description = "AKS Cluster name"
+  value       = azurerm_kubernetes_cluster.aks.name
+}

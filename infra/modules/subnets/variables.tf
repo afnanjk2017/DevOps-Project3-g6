@@ -29,3 +29,31 @@ variable "rg_id" {
   type        = string
   description = "RG ID"
 }
+
+
+
+# AKS Subnet
+variable "subnet_aks_name" {
+  description = "Subnet for AKS Cluster"
+  type        = string
+  default     = "snet-aks"
+}
+
+variable "subnet_aks_cidr" {
+  description = "CIDR block for AKS subnet"
+  type        = string
+  default     = "10.0.1.0/24"
+}
+
+# Private Link Subnet
+variable "subnet_pl_name" {
+  description = "Subnet for Private Link"
+  type        = string
+  default     = "snet-privatelink"
+}
+
+variable "subnet_pl_cidr" {
+  description = "CIDR block for Private Link subnet"
+  type        = string
+  default     = "10.0.2.0/24"
+}

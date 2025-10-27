@@ -21,19 +21,12 @@ variable "vnet_id" {
   description = "ID of the virtual network"
 }
 
-variable "subnet_db_id" {
-  type        = string
-  description = "ID of the db subnet"
-}
-variable "private_endpoint_subnet_id" {
+
+variable "privatelink" {
   type        = string
   description = "ID of the subnet"
 }
-variable "author" {
-  type        = string
-  description = "Name of the author"
-  default     = "terraform"
-}
+
 variable "resource_prefix" {
   type        = string
   description = "Prefix for resources"
