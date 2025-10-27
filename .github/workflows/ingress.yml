@@ -195,7 +195,7 @@ jobs:
       - name: Display Access Information
         run: |
           if [ -n "${{ steps.get-external-ip.outputs.external_ip }}" ]; then
-            echo "🎉  Monitoring stack deployed successfully!"
+            echo "🎉 Monitoring stack deployed successfully!"
             echo ""
             echo "Access URLs:"
             echo "  Prometheus: http://${{ steps.get-external-ip.outputs.external_ip }}/prometheus"
