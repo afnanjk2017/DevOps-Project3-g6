@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  labels:
+    app: frontend-config
+data:
+  api-base-url: "http://catus-locatus-svc:4001"
+  environment: "production"
