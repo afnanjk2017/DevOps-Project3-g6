@@ -36,6 +36,10 @@ jobs:
 
       - name: HashiCorp - Setup Terraform
         uses: hashicorp/setup-terraform@v3.1.2
+      - name: Check current directory
+        run: |
+          pwd
+          ls -R
 
       - name: "Initialize Terraform"
         working-directory: ./infra
