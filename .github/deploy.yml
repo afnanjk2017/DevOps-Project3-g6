@@ -1,0 +1,382 @@
+name: build infrastructure
+
+on:
+  # push:
+  #   paths:
+  #     - "infra/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Choose environment"
+        required: true
+        default: "dev"
+
+jobs:
+  create-resources:
+    env:
+      TF_VAR_ARM_SUBSCRIPTION_ID: ${{secrets.ARM_SUBSCRIPTION_ID}}
+      TF_VAR_db_password: ${{secrets.db_password}}
+      TF_VAR_db_admin: ${{secrets.db_admin}}
+      TF_VAR_author: ${{secrets.author}}
+      TF_VAR_resource_prefix: ${{secrets.resource_prefix}}
+      TF_VAR_resource_group_name: ${{secrets.resource_group_name}}
+      TF_VAR_resource_group_location: ${{secrets.resource_group_location}}
+      TF_VAR_be_image_name_and_tag: ${{ secrets.be_image_name_and_tag}}
+      TF_VAR_fe_image_name_and_tag: ${{ secrets.fe_image_name_and_tag}}
+      TF_VAR_contact_person_email: ${{ secrets.contact_person_email }}
+      TF_VAR_contact_person_name: ${{ secrets.contact_person_name }}
+      TF_VAR_storage_rg: ${{ secrets.storage_rg }}
+      TF_VAR_keytf: ${{ secrets.keytf }}
+      TF_VAR_blob_con: ${{ secrets.blob_con }}
+      TF_VAR_storage_ac: ${{ secrets.storage_ac }}
+
+    name: "Builds the infrastructure on Azure"
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout the branch"
+
+        uses: "actions/checkout@v5"
+
+      - name: Azure Login (Service Principal)
+        uses: azure/login@v2
+        with:
+          creds: ${{secrets.AZURE_CREDS}}
+
+      - name: HashiCorp - Setup Terraform
+        uses: hashicorp/setup-terraform@v3.1.2
+
+      - name: "Initialize Terraform"
+        working-directory: ./infra
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.STORAGE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.STORAGE_AC }}" \
+            -backend-config="container_name=${{ secrets.BLOB_CON }}" \
+            -backend-config="key=${{ secrets.keytf }}"
+
+      - name: Run Terraform Plan
+        working-directory: ./infra
+        run: terraform plan
+
+      - name: Apply Terraform (Few times due to inconsistent plan errors that just resolve with retry.)
+        working-directory: ./infra
+        run: terraform apply -auto-approve  || terraform apply -auto-approve  || terraform apply -auto-approve
+
+ # - name: Get Gateway Public IP
+      #   id: get_ip
+      #   working-directory: ./infra
+      #   run: |
+      #     ip=$(terraform output -raw agw_ips)
+      #     echo "gateway_ip=$ip" >> $GITHUB_OUTPUT
+      - name: Get AKS Cluster Information
+        id: get_aks_info
+        working-directory: ./infra
+        run: |
+          resource_group=$(terraform output -raw resource_group_name)
+          cluster_name=$(terraform output -raw aks_cluster_name)
+          echo "resource_group=$resource_group" >> $GITHUB_OUTPUT
+          echo "cluster_name=$cluster_name" >> $GITHUB_OUTPUT
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ steps.get_aks_info.outputs.resource_group }} \
+            --name ${{ steps.get_aks_info.outputs.cluster_name }} \
+            --overwrite-existing
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+
+      - name: Install NGINX Ingress Controller
+        run: |
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --set controller.service.type=LoadBalancer \
+            --set controller.replicaCount=2 \
+            --set controller.resources.requests.cpu=100m \
+            --set controller.resources.requests.memory=128Mi \
+            --set controller.resources.limits.cpu=500m \
+            --set controller.resources.limits.memory=512Mi \
+            --wait \
+            --timeout=10m
+
+      - name: Wait for Ingress Controller
+        run: |
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=300s
+
+      - name: Install Prometheus
+        run: |
+          helm upgrade --install prometheus prometheus-community/prometheus \
+            --namespace monitoring \
+            --create-namespace \
+            --set server.persistentVolume.enabled=true \
+            --set server.persistentVolume.size=10Gi \
+            --set server.resources.requests.cpu=200m \
+            --set server.resources.requests.memory=256Mi \
+            --set server.resources.limits.cpu=1000m \
+            --set server.resources.limits.memory=1Gi \
+            --set server.service.type=ClusterIP \
+            --set alertmanager.enabled=true \
+            --set alertmanager.persistentVolume.enabled=true \
+            --set alertmanager.persistentVolume.size=5Gi \
+            --set pushgateway.enabled=true \
+            --set nodeExporter.enabled=true \
+            --set kubeStateMetrics.enabled=true \
+            --wait \
+            --timeout=10m
+
+      - name: Install Grafana with Prometheus Datasource
+        run: |
+          helm upgrade --install grafana grafana/grafana \
+            --namespace monitoring \
+            --set adminPassword=admin123 \
+            --set persistence.enabled=true \
+            --set persistence.size=10Gi \
+            --set resources.requests.cpu=200m \
+            --set resources.requests.memory=256Mi \
+            --set resources.limits.cpu=1000m \
+            --set resources.limits.memory=1Gi \
+            --set service.type=ClusterIP \
+            --set grafana.ini.server.root_url=http://localhost:3000 \
+            --set grafana.ini.security.admin_user=admin \
+            --set grafana.ini.security.admin_password=admin123 \
+            --set grafana.ini.datasources.datasources.yaml.apiVersion=1 \
+            --set grafana.ini.datasources.datasources.yaml.datasources[0].name=Prometheus \
+            --set grafana.ini.datasources.datasources.yaml.datasources[0].type=prometheus \
+            --set grafana.ini.datasources.datasources.yaml.datasources[0].url=http://prometheus-server.monitoring.svc.cluster.local \
+            --set grafana.ini.datasources.datasources.yaml.datasources[0].access=proxy \
+            --set grafana.ini.datasources.datasources.yaml.datasources[0].isDefault=true \
+            --wait \
+            --timeout=10m
+
+      - name: Apply Ingress Configuration
+        run: |
+          kubectl apply -f k8s/monitoring/ingress.yaml
+
+      - name: Wait for Monitoring Services
+        run: |
+          kubectl wait --namespace monitoring \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/name=prometheus \
+            --timeout=300s
+          
+          kubectl wait --namespace monitoring \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/name=grafana \
+            --timeout=300s
+
+      - name: Get External IP
+        id: get_external_ip
+        run: |
+          EXTERNAL_IP=$(kubectl get service ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -z "$EXTERNAL_IP" ]; then
+            echo "External IP not yet assigned"
+            echo "external_ip=" >> $GITHUB_OUTPUT
+          else
+            echo "External IP: $EXTERNAL_IP"
+            echo "external_ip=$EXTERNAL_IP" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify Prometheus is Running
+        run: |
+          echo "Checking Prometheus deployment..."
+          kubectl get pods -n monitoring -l app.kubernetes.io/name=prometheus
+          kubectl get services -n monitoring -l app.kubernetes.io/name=prometheus
+          
+          # Check if Prometheus is ready
+          PROMETHEUS_READY=$(kubectl get pods -n monitoring -l app.kubernetes.io/name=prometheus -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}')
+          if [ "$PROMETHEUS_READY" = "True" ]; then
+            echo "✅ Prometheus is running and ready"
+          else
+            echo "❌ Prometheus is not ready yet"
+            kubectl describe pods -n monitoring -l app.kubernetes.io/name=prometheus
+          fi
+
+      - name: Verify Grafana is Running
+        run: |
+          echo "Checking Grafana deployment..."
+          kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana
+          kubectl get services -n monitoring -l app.kubernetes.io/name=grafana
+          
+          # Check if Grafana is ready
+          GRAFANA_READY=$(kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}')
+          if [ "$GRAFANA_READY" = "True" ]; then
+            echo "✅ Grafana is running and ready"
+          else
+            echo "❌ Grafana is not ready yet"
+            kubectl describe pods -n monitoring -l app.kubernetes.io/name=grafana
+          fi
+
+      - name: Test Grafana Login
+        run: |
+          echo "Testing Grafana login..."
+          
+          # Port forward to Grafana service
+          kubectl port-forward -n monitoring svc/grafana 3000:80 &
+          PORT_FORWARD_PID=$!
+          
+          # Wait for port forward to be ready
+          sleep 10
+          
+          # Test login with curl
+          LOGIN_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"user":"admin","password":"admin123"}' \
+            http://localhost:3000/api/auth/login)
+          
+          if [ "$LOGIN_RESPONSE" = "200" ]; then
+            echo "✅ Grafana login successful"
+          else
+            echo "❌ Grafana login failed with status code: $LOGIN_RESPONSE"
+          fi
+          
+          # Kill port forward
+          kill $PORT_FORWARD_PID
+
+      - name: Test Prometheus Connection from Grafana
+        run: |
+          echo "Testing Prometheus connection from Grafana..."
+          
+          # Port forward to Grafana service
+          kubectl port-forward -n monitoring svc/grafana 3000:80 &
+          PORT_FORWARD_PID=$!
+          
+          # Wait for port forward to be ready
+          sleep 10
+          
+          # Test datasource connection
+          DATASOURCE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET \
+            -H "Authorization: Basic YWRtaW46YWRtaW4xMjM=" \
+            http://localhost:3000/api/datasources)
+          
+          if [ "$DATASOURCE_RESPONSE" = "200" ]; then
+            echo "✅ Grafana datasources accessible"
+            
+            # Check if Prometheus datasource is configured
+            PROMETHEUS_DS=$(curl -s \
+              -H "Authorization: Basic YWRtaW46YWRtaW4xMjM=" \
+              http://localhost:3000/api/datasources | grep -o '"name":"Prometheus"' || echo "")
+            
+            if [ -n "$PROMETHEUS_DS" ]; then
+              echo "✅ Prometheus datasource is configured in Grafana"
+            else
+              echo "❌ Prometheus datasource not found in Grafana"
+            fi
+          else
+            echo "❌ Failed to access Grafana datasources with status code: $DATASOURCE_RESPONSE"
+          fi
+          
+          # Kill port forward
+          kill $PORT_FORWARD_PID
+
+      - name: Display Access Information
+        run: |
+          if [ -n "${{ steps.get_external_ip.outputs.external_ip }}" ]; then
+            echo "🎉 Infrastructure and monitoring stack deployed successfully!"
+            echo ""
+            echo "Access URLs:"
+            echo "  Prometheus: http://${{ steps.get_external_ip.outputs.external_ip }}/prometheus"
+            echo "  Grafana: http://${{ steps.get_external_ip.outputs.external_ip }}/grafana"
+            echo "  Grafana credentials: admin / admin123"
+            echo ""
+            echo "To get the external IP later, run:"
+            echo "  kubectl get service ingress-nginx-controller -n ingress-nginx"
+          else
+            echo "⚠️ External IP not yet assigned. Please wait a few minutes and check:"
+            echo "  kubectl get service ingress-nginx-controller -n ingress-nginx"
+            echo ""
+            echo "You can access services locally using port-forward:"
+            echo "  kubectl port-forward -n monitoring svc/grafana 3000:80"
+            echo "  kubectl port-forward -n monitoring svc/prometheus-server 9090:80"
+          fi
+
+      - name: Create Deployment Summary
+        run: |
+          cat << EOF > deployment-summary.md
+          # Infrastructure and Monitoring Deployment Summary
+          
+          **Deployment Time:** $(date)
+          **Environment:** ${{ github.event.inputs.environment || 'dev' }}
+          **Resource Group:** ${{ steps.get_aks_info.outputs.resource_group }}
+          **Cluster Name:** ${{ steps.get_aks_info.outputs.cluster_name }}
+          
+          ## Infrastructure Components
+          - ✅ Azure Resource Group
+          - ✅ Virtual Network and Subnets
+          - ✅ AKS Cluster
+          - ✅ Application Gateway
+          - ✅ Database (PostgreSQL)
+          - ✅ Application Service
+          
+          ## Monitoring Components
+          - ✅ NGINX Ingress Controller
+          - ✅ Prometheus (with Alertmanager, Node Exporter, Kube State Metrics)
+          - ✅ Grafana (with Prometheus datasource configured)
+          - ✅ Ingress Configuration
+          
+          ## Access Information
+          EOF
+          
+          if [ -n "${{ steps.get_external_ip.outputs.external_ip }}" ]; then
+            cat << EOF >> deployment-summary.md
+          - **Prometheus:** http://${{ steps.get_external_ip.outputs.external_ip }}/prometheus
+          - **Grafana:** http://${{ steps.get_external_ip.outputs.external_ip }}/grafana
+          - **Grafana Credentials:** admin / admin123
+          EOF
+          else
+            cat << EOF >> deployment-summary.md
+          - **External IP:** Not yet assigned (check in a few minutes)
+          - **Command to check:** kubectl get service ingress-nginx-controller -n ingress-nginx
+          - **Local access:** Use port-forward commands shown above
+          EOF
+          fi
+          
+          cat << EOF >> deployment-summary.md
+          
+          ## Verification Commands
+          \`\`\`bash
+          # Check all pods
+          kubectl get pods --all-namespaces
+          
+          # Check services
+          kubectl get services --all-namespaces
+          
+          # Check ingress
+          kubectl get ingress --all-namespaces
+          
+          # Check Prometheus targets
+          kubectl port-forward -n monitoring svc/prometheus-server 9090:80
+          # Then visit http://localhost:9090/targets
+          
+          # Check Grafana
+          kubectl port-forward -n monitoring svc/grafana 3000:80
+          # Then visit http://localhost:3000 (admin/admin123)
+          \`\`\`
+          EOF
+
+      - name: Upload Deployment Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-deployment-summary
+          path: deployment-summary.md
