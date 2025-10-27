@@ -22,6 +22,25 @@ jobs:
         with:
           creds: ${{secrets.AZURE_CREDS}}
 
+      - name: HashiCorp - Setup Terraform
+        uses: hashicorp/setup-terraform@v3.1.2
+
+      - name: Terraform Init
+        working-directory: ./infra
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.STORAGE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.STORAGE_AC }}" \
+            -backend-config="container_name=${{ secrets.BLOB_CON }}" \
+            -backend-config="key=${{ secrets.keytf }}"
+
+      - name: Get AKS Details from Terraform Output
+        id: aks_output
+        working-directory: ./infra
+        run: |
+          echo "rg_name=$(terraform output -raw rg_name)" >> $GITHUB_OUTPUT
+          echo "aks_name=$(terraform output -raw aks_name)" >> $GITHUB_OUTPUT
+
       - name: Connect to AKS Cluster
         run: |
           az aks get-credentials \
