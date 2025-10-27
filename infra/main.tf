@@ -124,7 +124,7 @@ module "vnets" {
   author          = var.author
   resource_prefix = var.resource_prefix
 }
-/* module "aks" {
+module "aks" {
   source                 = "./modules/aks"
   default_node_pool_name = var.author
   location               = var.resource_group_location
@@ -132,4 +132,4 @@ module "vnets" {
   aks_subnet             = module.subnets.subnet_aks_id
   rg_name                = module.resourcegroups.rg_name
 
-} */
+}
