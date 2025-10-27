@@ -23,6 +23,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
     network_plugin_mode = "overlay"
     load_balancer_sku   = "standard"
     outbound_type       = "loadBalancer"
+    service_cidr        = "10.100.0.0/16"
+    dns_service_ip      = "10.100.0.10"
+    pod_cidr            = "10.200.0.0/16" # optional
   }
 
   identity {
