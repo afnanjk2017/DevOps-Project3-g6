@@ -5,7 +5,7 @@ metadata:
   labels:
     app: cl-fe-svc
 spec:
-  type: CluterIP
+  type: ClusterIP
   selector:
     app: cl-fe
   ports:
