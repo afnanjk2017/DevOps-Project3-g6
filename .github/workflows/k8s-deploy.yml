@@ -55,9 +55,10 @@ jobs:
 
       - name: Deploy manifests
         run: |
-
+          kubectl delete ns dev || true
           kubectl get ns dev || kubectl create ns dev
-          kubectl apply -f k8s/test/ -n dev
+          kubectl apply -f k8s/frontend/ -n dev  || true
+          kubectl apply -f k8s/backend/ -n dev  || true
           kubectl rollout restart deployment/frontend-deploy -n dev
 
       - name: Verify deployments
