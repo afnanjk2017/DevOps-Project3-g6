@@ -56,19 +56,9 @@ jobs:
       - name: Deploy manifests
         run: |
           kubectl delete all -n default
-          kubectl create namespace dev || true
-          kubectl apply -f k8s/test/db-pvc.yml -n dev
-          kubectl apply -f k8s/test/db-secret.yml -n dev
-          kubectl apply -f k8s/test/db-deploy.yml -n dev
-          kubectl apply -f k8s/test/db-svc.yml -n dev
-          kubectl apply -f k8s/test/api-deploy.yml -n dev
-          kubectl apply -f k8s/test/ui-configmap.yml -n dev
-          kubectl apply -f k8s/test/ui-deploy.yml -n dev
-          kubectl apply -f k8s/test/backend-clusterip.yml -n dev
-          kubectl apply -f k8s/test/frontend-clusterip.yml -n dev
+          kubectl create ns dev --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/test/ -n dev
           kubectl rollout restart deploy/frontend-deploy -n dev
-          kubectl apply -f k8s/test/frontend-ingress.yml -n dev
-          kubectl apply -f k8s/test/backend-ingress.yml-n dev
 
       - name: Verify deployments
         run: |
