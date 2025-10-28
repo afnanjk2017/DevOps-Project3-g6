@@ -76,13 +76,12 @@ jobs:
           kubectl apply -f k8s/backend/backend-svc.yml -n dev
           kubectl apply -f k8s/backend/backend-ingress.yml -n dev
           kubectl apply -f /tmp/backend-deploy.yml -n dev
-
-          # Frontend (apply each manifest for clearer errors)
-
+          kubectl apply -f k8s/backend/backend-hpa.yml -n dev
           kubectl apply -f k8s/frontend/ui-configmap.yml -n dev
           kubectl apply -f k8s/frontend/frontend-clusterip.yml -n dev
           kubectl apply -f k8s/frontend/ui-deploy.yml -n dev
           kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
+          kubectl apply -f k8s/frontend/frontend-hpa.yml -n dev
 
           kubectl rollout status deployment/backend-deploy -n dev --timeout=180s
           kubectl rollout status deployment/frontend-deploy -n dev --timeout=180s
