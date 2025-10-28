@@ -92,6 +92,24 @@ jobs:
           kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
           kubectl apply -f k8s/frontend/frontend-hpa.yml -n dev
 
+      
+      - name: Apply monitoring resources (Grafana datasource + dashboard)
+        run: |
+          set -e
+          # Ensure monitoring namespace exists
+          kubectl get ns monitoring || kubectl create ns monitoring
+          # Apply datasource first so Grafana picks it up on start
+          kubectl apply -f k8s/monitoring/grafana-datasource.yml -n monitoring
+          # Restart Grafana to reload provisioning
+          kubectl -n monitoring rollout restart deploy/kube-prometheus-stack-grafana || true
+          # Re-apply dashboard after restart to ensure bindings
+          kubectl apply -f k8s/monitoring/grafana-dashboard.yml -n monitoring
+
+      - name: Show Grafana admin password
+        run: |
+          echo "Grafana admin password (kube-prometheus-stack-grafana):"
+          kubectl -n monitoring get secret kube-prometheus-stack-grafana -o jsonpath='{.data.admin-password}' | base64 --decode ; echo
+
       - name: Wait for rollouts
         run: |
           set -e

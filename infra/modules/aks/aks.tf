@@ -11,7 +11,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     vnet_subnet_id              = var.aks_subnet
     temporary_name_for_rotation = "userrot"
     auto_scaling_enabled        = true
-    min_count                   = 1
+    min_count                   = 2
     max_count                   = 3
     upgrade_settings {
       max_surge = "33%"
