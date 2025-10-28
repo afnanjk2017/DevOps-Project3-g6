@@ -58,25 +58,34 @@ jobs:
 
       - name: Deploy manifests
         run: |
+          set -e
           kubectl get ns dev || kubectl create ns dev
+
           JDBC_URL="jdbc:sqlserver://${{ steps.aks_output.outputs.db_server_fqdn }}:1433;database=${{ steps.aks_output.outputs.db_name }};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
           kubectl -n dev delete secret db-credentials || true
           kubectl -n dev create secret generic db-credentials \
             --from-literal=DB_URL=${JDBC_URL} \
             --from-literal=DB_USERNAME=${{ steps.aks_output.outputs.db_admin }} \
             --from-literal=DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          # Render backend deploy with DockerHub username
+
           sudo apt-get update && sudo apt-get install -y gettext-base
           export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
           envsubst < k8s/backend/backend-deploy.yml > /tmp/backend-deploy.yml
-          # Force replace frontend ingress so updated regex path takes effect
+
+          # Backend
+          kubectl apply -f k8s/backend/backend-svc.yml -n dev
+          kubectl apply -f k8s/backend/backend-ingress.yml -n dev
+          kubectl apply -f /tmp/backend-deploy.yml -n dev
+
+          # Frontend (apply each manifest for clearer errors)
           kubectl -n dev delete ingress frontend-ingress || true
-          kubectl apply -f k8s/frontend/ -n dev || true
-          kubectl apply -f k8s/backend/backend-svc.yml -n dev || true
-          kubectl apply -f k8s/backend/backend-ingress.yml -n dev || true
-          kubectl apply -f /tmp/backend-deploy.yml -n dev || true
-          kubectl rollout restart deployment/frontend-deploy -n dev
-          kubectl rollout restart deployment/backend-deploy -n dev
+          kubectl apply -f k8s/frontend/ui-configmap.yml -n dev
+          kubectl apply -f k8s/frontend/frontend-clusterip.yml -n dev
+          kubectl apply -f k8s/frontend/ui-deploy.yml -n dev
+          kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
+
+          kubectl rollout status deployment/backend-deploy -n dev --timeout=180s
+          kubectl rollout status deployment/frontend-deploy -n dev --timeout=180s
 
       - name: Verify deployments
         run: |
