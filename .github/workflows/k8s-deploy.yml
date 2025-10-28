@@ -69,6 +69,8 @@ jobs:
           sudo apt-get update && sudo apt-get install -y gettext-base
           export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
           envsubst < k8s/backend/backend-deploy.yml > /tmp/backend-deploy.yml
+          # Force replace frontend ingress so updated regex path takes effect
+          kubectl -n dev delete ingress frontend-ingress || true
           kubectl apply -f k8s/frontend/ -n dev || true
           kubectl apply -f k8s/backend/backend-svc.yml -n dev || true
           kubectl apply -f k8s/backend/backend-ingress.yml -n dev || true
