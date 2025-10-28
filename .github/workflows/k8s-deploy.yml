@@ -81,3 +81,21 @@ jobs:
           kubectl get pods -A
           kubectl get svc -A
           kubectl get ingress -A
+
+      - name: Debug routing and backend health
+        run: |
+          set -x
+          kubectl -n dev describe ingress frontend-ingress || true
+          kubectl -n dev describe ingress backend-ingress || true
+          kubectl -n dev describe svc backend-clusterip || true
+          kubectl -n dev get endpoints backend-clusterip -o wide || true
+          kubectl -n dev rollout status deployment/backend-deploy --timeout=120s || true
+          BACKEND_POD=$(kubectl -n dev get pods -l app=backend-app -o jsonpath='{.items[0].metadata.name}' || true)
+          if [ -n "$BACKEND_POD" ]; then
+            kubectl -n dev logs "$BACKEND_POD" --tail=200 || true
+          fi
+          INGRESS_IP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+          if [ -n "$INGRESS_IP" ]; then
+            echo "Trying curl to http://$INGRESS_IP/api/health" || true
+            curl -i --max-time 10 "http://$INGRESS_IP/api/health" || true
+          fi
