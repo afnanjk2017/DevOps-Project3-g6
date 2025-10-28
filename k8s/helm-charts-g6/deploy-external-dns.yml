@@ -9,13 +9,9 @@ spec:
   targetNamespace: kube-system
   valuesContent: |-
     provider: azure
-  
+
     azure:
-      tenantId: "84f58ce9-43c8-4932-b908-591a8a3007d3"
-      subscriptionId: "80646857-9142-494b-90c5-32fea6acbc41"
-      resourceGroup: "project3-g6-devops"
-      aadClientId: "496d8d43-ef6f-4e95-afda-2b92076e934f"
-      aadClientSecret: "-298Q~Dpx3KQs4nD51T5.4ADbkzpbQYzfpwWrdbJ"
+     
 
     # RBAC
     serviceAccount:
@@ -29,4 +25,3 @@ spec:
     domainFilters: []
     interval: 1m
     logLevel: info
-
