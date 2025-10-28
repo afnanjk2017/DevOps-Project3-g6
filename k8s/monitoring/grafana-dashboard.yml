@@ -8,6 +8,7 @@ metadata:
 data:
   dashboard.json: |
     {
+    "uid": "k8s-quickview",
     "__inputs": [
       {
         "name": "DS__VICTORIAMETRICS-PROD-ALL",
