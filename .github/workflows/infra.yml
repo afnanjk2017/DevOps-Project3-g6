@@ -36,9 +36,13 @@ jobs:
 
       - name: HashiCorp - Setup Terraform
         uses: hashicorp/setup-terraform@v3.1.2
+      - name: Check current directory
+        run: |
+          pwd
+          ls -R
 
       - name: "Initialize Terraform"
-        working-directory: ./infra
+        working-directory: infra
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ secrets.STORAGE_RG }}" \
@@ -47,16 +51,16 @@ jobs:
             -backend-config="key=${{ secrets.keytf }}"
 
       - name: Run Terraform Plan
-        working-directory: ./infra
+        working-directory: infra
         run: terraform plan
 
       - name: Apply Terraform (Few times due to inconsistent plan errors that just resolve with retry.)
-        working-directory: ./infra
+        working-directory: infra
         run: terraform apply -auto-approve  || terraform apply -auto-approve  || terraform apply -auto-approve
 
       - name: Get AKS Details from Terraform Output
         id: aks_output
-        working-directory: ./infra
+        working-directory: infra
         run: |
           echo "rg_name=$(terraform output -raw rg_name)" >> $GITHUB_OUTPUT
           echo "aks_name=$(terraform output -raw aks_name)" >> $GITHUB_OUTPUT

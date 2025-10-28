@@ -12,15 +12,20 @@ jobs:
   deploy-k8s:
     name: "Deploy all Kubernetes manifests"
     runs-on: ubuntu-latest
-    steps:
-      - name: "Checkout the branch"
 
-        uses: "actions/checkout@v5"
+    steps:
+      - name: Checkout the branch
+        uses: actions/checkout@v5
 
       - name: Azure Login (Service Principal)
         uses: azure/login@v2
         with:
-          creds: ${{secrets.AZURE_CREDS}}
+          creds: ${{ secrets.AZURE_CREDS }}
+
+      - name: Debug Terraform Outputs
+        run: |
+          echo "RG NAME: ${{ steps.aks_output.outputs.rg_name }}"
+          echo "AKS NAME: ${{ steps.aks_output.outputs.aks_name }}"
 
       - name: HashiCorp - Setup Terraform
         uses: hashicorp/setup-terraform@v3.1.2
@@ -44,18 +49,17 @@ jobs:
       - name: Connect to AKS Cluster
         run: |
           az aks get-credentials \
-            --resource-group ${{ steps.aks_output.outputs.rg_name }} \
-            --name ${{ steps.aks_output.outputs.aks_name }} \
+            --resource-group project3-g6-devops \
+            --name group6--aks-cluster \
             --overwrite-existing
 
       - name: Deploy manifests
         run: |
-          kubectl apply -f k8s/backend/ --recursive
-          kubectl apply -f k8s/frontend/ --recursive
-          kubectl apply -f k8s/network/ --recursive
-          kubectl apply -f k8s/rbac-g6/ --recursive
-          kubectl apply -f k8s/helm-charts-g6/ --recursive
-          kubectl apply -f k8s/monitoring/ --recursive
+          kubectl delete ns dev || true
+          kubectl get ns dev || kubectl create ns dev
+          kubectl apply -f k8s/frontend/ -n dev  || true
+          kubectl apply -f k8s/backend/ -n dev  || true
+          kubectl rollout restart deployment/frontend-deploy -n dev
 
       - name: Verify deployments
         run: |
