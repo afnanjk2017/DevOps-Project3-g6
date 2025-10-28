@@ -78,7 +78,7 @@ jobs:
           kubectl apply -f /tmp/backend-deploy.yml -n dev
 
           # Frontend (apply each manifest for clearer errors)
-          kubectl -n dev delete ingress frontend-ingress || true
+
           kubectl apply -f k8s/frontend/ui-configmap.yml -n dev
           kubectl apply -f k8s/frontend/frontend-clusterip.yml -n dev
           kubectl apply -f k8s/frontend/ui-deploy.yml -n dev
