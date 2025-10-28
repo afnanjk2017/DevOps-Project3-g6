@@ -92,18 +92,17 @@ jobs:
           kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
           kubectl apply -f k8s/frontend/frontend-hpa.yml -n dev
 
-      # - name: Create and apply Grafana dashboard ConfigMap
-      #   run: |
-      #     set -e
-      #     kubectl create configmap dashboard-k8s-quickview \
-      #       --namespace monitoring \
-      #       --from-file=k8s/monitoring/15661_rev2.json \
-      #       --dry-run=client -o yaml | kubectl apply -f -
-
+      
       - name: Apply monitoring resources (Grafana datasource + dashboard)
         run: |
           set -e
+          # Ensure monitoring namespace exists
+          kubectl get ns monitoring || kubectl create ns monitoring
+          # Apply datasource first so Grafana picks it up on start
           kubectl apply -f k8s/monitoring/grafana-datasource.yml -n monitoring
+          # Restart Grafana to reload provisioning
+          kubectl -n monitoring rollout restart deploy/kube-prometheus-stack-grafana || true
+          # Re-apply dashboard after restart to ensure bindings
           kubectl apply -f k8s/monitoring/grafana-dashboard.yml -n monitoring
 
       - name: Show Grafana admin password
