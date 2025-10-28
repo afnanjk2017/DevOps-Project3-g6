@@ -47,6 +47,7 @@ jobs:
           echo "aks_name=$(terraform output -raw aks_name)" >> $GITHUB_OUTPUT
           echo "db_server_fqdn=$(terraform output -raw db_server_fqdn)" >> $GITHUB_OUTPUT
           echo "db_name=$(terraform output -raw db_name)" >> $GITHUB_OUTPUT
+          echo "db_admin=$(terraform output -raw db_admin)" >> $GITHUB_OUTPUT
 
       - name: Connect to AKS Cluster
         run: |
@@ -62,7 +63,7 @@ jobs:
           kubectl -n dev delete secret db-credentials || true
           kubectl -n dev create secret generic db-credentials \
             --from-literal=DB_URL=${JDBC_URL} \
-            --from-literal=DB_USERNAME=${{ secrets.DB_USERNAME }} \
+            --from-literal=DB_USERNAME=${{ steps.aks_output.outputs.db_admin }} \
             --from-literal=DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           # Render backend deploy with DockerHub username
           sudo apt-get update && sudo apt-get install -y gettext-base

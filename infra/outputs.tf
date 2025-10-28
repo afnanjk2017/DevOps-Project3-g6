@@ -16,3 +16,7 @@ output "db_server_fqdn" {
 output "db_name" {
   value = module.db.db_name
 }
+
+output "db_admin" {
+  value = module.db.db_admin
+}
