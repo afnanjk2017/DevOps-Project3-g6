@@ -55,13 +55,20 @@ jobs:
 
       - name: Deploy manifests
         run: |
-          kubectl apply -f k8s/backend/ --recursive
-          kubectl apply -f k8s/frontend/ --recursive
-          kubectl apply -f k8s/network/ --recursive
-          kubectl apply -f k8s/rbac-g6/ --recursive
-
-        # kubectl apply -f k8s/helm-charts-g6/ --recursive
-        # kubectl apply -f k8s/monitoring/ --recursive
+          kubectl delete all -n default
+          kubectl create namespace dev || true
+          kubectl apply -f k8s/test/db-pvc.yml -n dev
+          kubectl apply -f k8s/test/db-secret.yml -n dev
+          kubectl apply -f k8s/test/db-deploy.yml -n dev
+          kubectl apply -f k8s/test/db-svc.yml -n dev
+          kubectl apply -f k8s/test/api-deploy.yml -n dev
+          kubectl apply -f k8s/test/ui-configmap.yml -n dev
+          kubectl apply -f k8s/test/ui-deploy.yml -n dev
+          kubectl apply -f k8s/test/backend-clusterip.yml -n dev
+          kubectl apply -f k8s/test/frontend-clusterip.yml -n dev
+          kubectl rollout restart deploy/frontend-deploy -n dev
+          kubectl apply -f k8s/test/frontend-ingress.yml -n dev
+          kubectl apply -f k8s/test/backend-ingress.yml-n dev
 
       - name: Verify deployments
         run: |
