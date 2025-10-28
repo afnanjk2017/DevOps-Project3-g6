@@ -55,10 +55,10 @@ jobs:
 
       - name: Deploy manifests
         run: |
-          kubectl delete all -n default
-          kubectl create ns dev --dry-run=client -o yaml | kubectl apply -f -
+          kubectl delete all --all -n default || true
+          kubectl get ns dev || kubectl create ns dev
           kubectl apply -f k8s/test/ -n dev
-          kubectl rollout restart deploy/frontend-deploy -n dev
+          kubectl rollout restart deployment/frontend-deploy -n dev
 
       - name: Verify deployments
         run: |
