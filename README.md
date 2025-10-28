@@ -7,7 +7,7 @@
  
  ## Architecture
  
- ![System Architecture](docs/architecture.jpg)
+ ![System Architecture](docs/architecture.png)
  
  - App Gateway → AKS Ingress → Frontend/Backend
  - Backend → Azure SQL via Private Endpoint
