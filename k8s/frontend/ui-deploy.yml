@@ -23,7 +23,7 @@ spec:
                 path: config.json
       containers:
         - name: frontend-app
-          image: afnanjk2017/burger-frontend:latest
+          image: "${DOCKERHUB_USERNAME}/burger-frontend:latest"
           ports:
             - containerPort: 80
           volumeMounts:

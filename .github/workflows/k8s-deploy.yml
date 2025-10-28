@@ -56,11 +56,10 @@ jobs:
             --name ${{ steps.aks_output.outputs.aks_name }} \
             --overwrite-existing
 
-      - name: Deploy manifests
+      - name: Prepare namespace and DB secret
         run: |
           set -e
           kubectl get ns dev || kubectl create ns dev
-
           JDBC_URL="jdbc:sqlserver://${{ steps.aks_output.outputs.db_server_fqdn }}:1433;database=${{ steps.aks_output.outputs.db_name }};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
           kubectl -n dev delete secret db-credentials || true
           kubectl -n dev create secret generic db-credentials \
@@ -68,21 +67,34 @@ jobs:
             --from-literal=DB_USERNAME=${{ steps.aks_output.outputs.db_admin }} \
             --from-literal=DB_PASSWORD=${{ secrets.DB_PASSWORD }}
 
+      - name: Render templates
+        run: |
+          set -e
           sudo apt-get update && sudo apt-get install -y gettext-base
           export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
           envsubst < k8s/backend/backend-deploy.yml > /tmp/backend-deploy.yml
+          envsubst < k8s/frontend/ui-deploy.yml > /tmp/ui-deploy.yml
 
-          # Backend
+      - name: Apply backend resources
+        run: |
+          set -e
           kubectl apply -f k8s/backend/backend-svc.yml -n dev
           kubectl apply -f k8s/backend/backend-ingress.yml -n dev
           kubectl apply -f /tmp/backend-deploy.yml -n dev
           kubectl apply -f k8s/backend/backend-hpa.yml -n dev
+
+      - name: Apply frontend resources
+        run: |
+          set -e
           kubectl apply -f k8s/frontend/ui-configmap.yml -n dev
           kubectl apply -f k8s/frontend/frontend-clusterip.yml -n dev
-          kubectl apply -f k8s/frontend/ui-deploy.yml -n dev
+          kubectl apply -f /tmp/ui-deploy.yml -n dev
           kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
           kubectl apply -f k8s/frontend/frontend-hpa.yml -n dev
 
+      - name: Wait for rollouts
+        run: |
+          set -e
           kubectl rollout status deployment/backend-deploy -n dev --timeout=180s
           kubectl rollout status deployment/frontend-deploy -n dev --timeout=180s
 
@@ -94,18 +106,9 @@ jobs:
 
       - name: Debug routing and backend health
         run: |
-          set -x
-          kubectl -n dev describe ingress frontend-ingress || true
           kubectl -n dev describe ingress backend-ingress || true
-          kubectl -n dev describe svc backend-clusterip || true
-          kubectl -n dev get endpoints backend-clusterip -o wide || true
-          kubectl -n dev rollout status deployment/backend-deploy --timeout=120s || true
-          BACKEND_POD=$(kubectl -n dev get pods -l app=backend-app -o jsonpath='{.items[0].metadata.name}' || true)
-          if [ -n "$BACKEND_POD" ]; then
-            kubectl -n dev logs "$BACKEND_POD" --tail=200 || true
-          fi
+          kubectl -n dev describe ingress frontend-ingress || true
           INGRESS_IP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
           if [ -n "$INGRESS_IP" ]; then
-            echo "Trying curl to http://$INGRESS_IP/api/health" || true
-            curl -i --max-time 10 "http://$INGRESS_IP/api/health" || true
+            curl -sSI --max-time 8 "http://$INGRESS_IP/api/health" || true
           fi
