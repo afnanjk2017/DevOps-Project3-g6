@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-k8s-quickview
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  dashboard.json: |
+    {
+      "id": null,
+      "uid": "k8s-quick",
+      "title": "K8s Quick View",
+      "tags": ["k8s", "quick"],
+      "timezone": "browser",
+      "schemaVersion": 36,
+      "version": 1,
+      "refresh": "30s",
+      "panels": [
+        {
+          "type": "graph",
+          "title": "Cluster CPU Usage (cores)",
+          "datasource": "Prometheus",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "sum(rate(container_cpu_usage_seconds_total{job=\"kubelet\", image!=\"\"}[5m]))", "legendFormat": "cpu" }
+          ]
+        },
+        {
+          "type": "graph",
+          "title": "Cluster Memory Usage (bytes)",
+          "datasource": "Prometheus",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "sum(container_memory_working_set_bytes{job=\"kubelet\", image!=\"\"})", "legendFormat": "mem" }
+          ]
+        },
+        {
+          "type": "graph",
+          "title": "Pod Restarts (last 1h)",
+          "datasource": "Prometheus",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "increase(kube_pod_container_status_restarts_total[1h])", "legendFormat": "{{pod}}" }
+          ]
+        }
+      ],
+      "templating": { "list": [] }
+    }
+

@@ -92,6 +92,17 @@ jobs:
           kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
           kubectl apply -f k8s/frontend/frontend-hpa.yml -n dev
 
+      - name: Apply monitoring resources (Grafana datasource + dashboard)
+        run: |
+          set -e
+          kubectl apply -f k8s/monitoring/grafana-datasource.yml -n monitoring
+          kubectl apply -f k8s/monitoring/grafana-dashboard.yml -n monitoring
+
+      - name: Show Grafana admin password
+        run: |
+          echo "Grafana admin password:"
+          kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+
       - name: Wait for rollouts
         run: |
           set -e
