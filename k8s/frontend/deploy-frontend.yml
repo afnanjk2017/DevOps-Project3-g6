@@ -1,46 +1,58 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: cl-fe
+  namespace: 
   labels:
-    app: frontend
+    app: cl-fe
+    tier: frontend
+    version: v1.0
+    name: cl-fe
+
+  #annotations for prometehus here
+
+  
+    
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
-      app: frontend
-  template:
+      app: cl-fe
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 25%
+  template: 
     metadata:
       labels:
-        app: frontend
+        app: cl-fe
+        tier: frontend
+        version: v1.0
     spec:
       containers:
-        - name: frontend
+        - name: catus-locatus-fe
           image: afnanjk2017/burger-frontend:latest
           ports:
-            - containerPort: 3000
-          envFrom:
-            - configMapRef:
-                name: frontend-config
-            - secretRef:
-                name: frontend-secrets
+            - containerPort: 80
+              protocol: TCP
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
+              memory: "100Mi"
               cpu: "100m"
-              memory: "128Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: frontend-service
-spec:
-  selector:
-    app: frontend
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 3000
-  type: LoadBalancer
+              memory: "100Mi"
+              cpu: "100m"    
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe: 
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5

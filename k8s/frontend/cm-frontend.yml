@@ -2,7 +2,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: frontend-config
+  labels:
+    app: frontend-config
 data:
-  REACT_APP_API_URL: "http://backend-service:8080/api"
-  REACT_APP_ENV: "production"
-
+  api-base-url: "http://catus-locatus-svc:4001"
+  environment: "production"
