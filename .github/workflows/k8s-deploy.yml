@@ -45,24 +45,70 @@ jobs:
         run: |
           echo "rg_name=$(terraform output -raw rg_name)" >> $GITHUB_OUTPUT
           echo "aks_name=$(terraform output -raw aks_name)" >> $GITHUB_OUTPUT
+          echo "db_server_fqdn=$(terraform output -raw db_server_fqdn)" >> $GITHUB_OUTPUT
+          echo "db_name=$(terraform output -raw db_name)" >> $GITHUB_OUTPUT
+          echo "db_admin=$(terraform output -raw db_admin)" >> $GITHUB_OUTPUT
 
       - name: Connect to AKS Cluster
         run: |
           az aks get-credentials \
-            --resource-group project3-g6-devops \
-            --name group6--aks-cluster \
+            --resource-group ${{ steps.aks_output.outputs.rg_name }} \
+            --name ${{ steps.aks_output.outputs.aks_name }} \
             --overwrite-existing
 
-      - name: Deploy manifests
+      - name: Prepare namespace and DB secret
         run: |
-          kubectl delete ns dev || true
+          set -e
           kubectl get ns dev || kubectl create ns dev
-          kubectl apply -f k8s/frontend/ -n dev  || true
-          kubectl apply -f k8s/backend/ -n dev  || true
-          kubectl rollout restart deployment/frontend-deploy -n dev
+          JDBC_URL="jdbc:sqlserver://${{ steps.aks_output.outputs.db_server_fqdn }}:1433;database=${{ steps.aks_output.outputs.db_name }};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+          kubectl -n dev delete secret db-credentials || true
+          kubectl -n dev create secret generic db-credentials \
+            --from-literal=DB_URL=${JDBC_URL} \
+            --from-literal=DB_USERNAME=${{ steps.aks_output.outputs.db_admin }} \
+            --from-literal=DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+      - name: Render templates
+        run: |
+          set -e
+          sudo apt-get update && sudo apt-get install -y gettext-base
+          export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+          envsubst < k8s/backend/backend-deploy.yml > /tmp/backend-deploy.yml
+          envsubst < k8s/frontend/ui-deploy.yml > /tmp/ui-deploy.yml
+
+      - name: Apply backend resources
+        run: |
+          set -e
+          kubectl apply -f k8s/backend/backend-svc.yml -n dev
+          kubectl apply -f k8s/backend/backend-ingress.yml -n dev
+          kubectl apply -f /tmp/backend-deploy.yml -n dev
+          kubectl apply -f k8s/backend/backend-hpa.yml -n dev
+
+      - name: Apply frontend resources
+        run: |
+          set -e
+          kubectl apply -f k8s/frontend/ui-configmap.yml -n dev
+          kubectl apply -f k8s/frontend/frontend-clusterip.yml -n dev
+          kubectl apply -f /tmp/ui-deploy.yml -n dev
+          kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
+          kubectl apply -f k8s/frontend/frontend-hpa.yml -n dev
+
+      - name: Wait for rollouts
+        run: |
+          set -e
+          kubectl rollout status deployment/backend-deploy -n dev --timeout=180s
+          kubectl rollout status deployment/frontend-deploy -n dev --timeout=180s
 
       - name: Verify deployments
         run: |
           kubectl get pods -A
           kubectl get svc -A
           kubectl get ingress -A
+
+      - name: Debug routing and backend health
+        run: |
+          kubectl -n dev describe ingress backend-ingress || true
+          kubectl -n dev describe ingress frontend-ingress || true
+          INGRESS_IP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+          if [ -n "$INGRESS_IP" ]; then
+            curl -sSI --max-time 8 "http://$INGRESS_IP/api/health" || true
+          fi

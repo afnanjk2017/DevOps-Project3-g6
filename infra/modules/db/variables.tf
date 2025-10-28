@@ -13,7 +13,6 @@ variable "db_password" {
 }
 variable "db_admin" {
   type        = string
-  sensitive   = true
   description = "resource group location"
 }
 variable "vnet_id" {

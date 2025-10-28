@@ -5,5 +5,5 @@ metadata:
 data:
   config.json: |
     {
-      "API_URL": "http://57.156.40.84/backend/"
+      "API_URL": "http://57.156.40.84/api/"
     }
