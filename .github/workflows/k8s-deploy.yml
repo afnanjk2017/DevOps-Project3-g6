@@ -45,21 +45,35 @@ jobs:
         run: |
           echo "rg_name=$(terraform output -raw rg_name)" >> $GITHUB_OUTPUT
           echo "aks_name=$(terraform output -raw aks_name)" >> $GITHUB_OUTPUT
+          echo "db_server_fqdn=$(terraform output -raw db_server_fqdn)" >> $GITHUB_OUTPUT
+          echo "db_name=$(terraform output -raw db_name)" >> $GITHUB_OUTPUT
 
       - name: Connect to AKS Cluster
         run: |
           az aks get-credentials \
-            --resource-group project3-g6-devops \
-            --name group6--aks-cluster \
+            --resource-group ${{ steps.aks_output.outputs.rg_name }} \
+            --name ${{ steps.aks_output.outputs.aks_name }} \
             --overwrite-existing
 
       - name: Deploy manifests
         run: |
-          kubectl delete ns dev || true
           kubectl get ns dev || kubectl create ns dev
-          kubectl apply -f k8s/frontend/ -n dev  || true
-          kubectl apply -f k8s/backend/ -n dev  || true
+          JDBC_URL="jdbc:sqlserver://${{ steps.aks_output.outputs.db_server_fqdn }}:1433;database=${{ steps.aks_output.outputs.db_name }};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+          kubectl -n dev delete secret db-credentials || true
+          kubectl -n dev create secret generic db-credentials \
+            --from-literal=DB_URL=${JDBC_URL} \
+            --from-literal=DB_USERNAME=${{ secrets.DB_USERNAME }} \
+            --from-literal=DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          # Render backend deploy with DockerHub username
+          sudo apt-get update && sudo apt-get install -y gettext-base
+          export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+          envsubst < k8s/backend/backend-deploy.yml > /tmp/backend-deploy.yml
+          kubectl apply -f k8s/frontend/ -n dev || true
+          kubectl apply -f k8s/backend/backend-svc.yml -n dev || true
+          kubectl apply -f k8s/backend/backend-ingress.yml -n dev || true
+          kubectl apply -f /tmp/backend-deploy.yml -n dev || true
           kubectl rollout restart deployment/frontend-deploy -n dev
+          kubectl rollout restart deployment/backend-deploy -n dev
 
       - name: Verify deployments
         run: |
