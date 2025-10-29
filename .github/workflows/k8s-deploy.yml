@@ -1,6 +1,9 @@
 name: deploy to kubernetes
 
 on:
+  pull_request:
+    paths:
+      - "k8s/**"
   workflow_dispatch:
     inputs:
       environment:
@@ -75,15 +78,19 @@ jobs:
           envsubst < k8s/backend/backend-deploy.yml > /tmp/backend-deploy.yml
           envsubst < k8s/frontend/ui-deploy.yml > /tmp/ui-deploy.yml
 
-      - name: Apply backend resources
+      - name: Apply backend resources manifests , Rollback if failed
         run: |
           set -e
           kubectl apply -f k8s/backend/backend-svc.yml -n dev
           kubectl apply -f k8s/backend/backend-ingress.yml -n dev
           kubectl apply -f /tmp/backend-deploy.yml -n dev
           kubectl apply -f k8s/backend/backend-hpa.yml -n dev
+          if ! kubectl rollout status deployment/backend-deploy -n dev --timeout=180s; then
+            echo "Deployment failed, rolling back..."
+            kubectl rollout undo deployment/backend-deploy -n dev
+          fi
 
-      - name: Apply frontend resources
+      - name: Apply frontend resources manifests , Rollback if failed
         run: |
           set -e
           kubectl apply -f k8s/frontend/ui-configmap.yml -n dev
@@ -91,8 +98,11 @@ jobs:
           kubectl apply -f /tmp/ui-deploy.yml -n dev
           kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
           kubectl apply -f k8s/frontend/frontend-hpa.yml -n dev
+          if ! kubectl rollout status deployment/frontend-deploy -n dev --timeout=180s; then
+            echo "Deployment failed, rolling back..."
+            kubectl rollout undo deployment/frontend-deploy -n dev
+          fi
 
-      
       - name: Apply monitoring resources (Grafana datasource + dashboard)
         run: |
           set -e
@@ -105,24 +115,13 @@ jobs:
           # Re-apply dashboard after restart to ensure bindings
           kubectl apply -f k8s/monitoring/grafana-dashboard.yml -n monitoring
 
-      - name: Show Grafana admin password
-        run: |
-          echo "Grafana admin password (kube-prometheus-stack-grafana):"
-          kubectl -n monitoring get secret kube-prometheus-stack-grafana -o jsonpath='{.data.admin-password}' | base64 --decode ; echo
-
-      - name: Wait for rollouts
-        run: |
-          set -e
-          kubectl rollout status deployment/backend-deploy -n dev --timeout=180s
-          kubectl rollout status deployment/frontend-deploy -n dev --timeout=180s
-
-      - name: Verify deployments
+      - name: Verify deployments (pods , svc , ingress )
         run: |
           kubectl get pods -A
           kubectl get svc -A
           kubectl get ingress -A
 
-      - name: Debug routing and backend health
+      - name: Debug routing and frontend + backend health
         run: |
           kubectl -n dev describe ingress backend-ingress || true
           kubectl -n dev describe ingress frontend-ingress || true
