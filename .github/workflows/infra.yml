@@ -109,6 +109,7 @@ jobs:
           INGRESS_IP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
           if [ -n "$INGRESS_IP" ]; then
             echo "Ingress IP: $INGRESS_IP"
+            echo "App URL: http://$INGRESS_IP:80"
           else
             echo "No Ingress IP found yet."
           fi
