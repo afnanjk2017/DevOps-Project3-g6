@@ -21,15 +21,15 @@ output "db_admin" {
   value = module.db.db_admin
 }
 
-# DNS outputs (from purchased domain)
+# DNS outputs (from DNS module)
 output "dns_zone_name" {
-  value = data.azurerm_dns_zone.domain.name
+  value = module.dns.dns_zone_name
 }
 
 output "dns_zone_rg" {
-  value = module.resourcegroups.rg_name
+  value = module.dns.dns_zone_rg
 }
 
 output "dns_subdomain" {
-  value = var.dns_subdomain
+  value = module.dns.dns_subdomain
 }
