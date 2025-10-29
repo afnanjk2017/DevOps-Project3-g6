@@ -3,9 +3,9 @@
 name: Build & Push Backend
 
 on:
-  #   push:
-  #     paths:
-  #       - "backend/**"
+  pull_request:
+    paths:
+      - "backend/**"
   workflow_dispatch:
 
 jobs:
@@ -39,5 +39,5 @@ jobs:
           context: ./backend
           push: true
           tags: |
-
+            ${{ secrets.DOCKERHUB_USERNAME }}/burger-backend:${{ github.sha }}
             ${{ secrets.DOCKERHUB_USERNAME }}/burger-backend:latest
