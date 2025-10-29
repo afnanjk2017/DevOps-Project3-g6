@@ -48,6 +48,9 @@ jobs:
           echo "db_server_fqdn=$(terraform output -raw db_server_fqdn)" >> $GITHUB_OUTPUT
           echo "db_name=$(terraform output -raw db_name)" >> $GITHUB_OUTPUT
           echo "db_admin=$(terraform output -raw db_admin)" >> $GITHUB_OUTPUT
+          echo "dns_zone_name=$(terraform output -raw dns_zone_name)" >> $GITHUB_OUTPUT
+          echo "dns_zone_rg=$(terraform output -raw dns_zone_rg)" >> $GITHUB_OUTPUT
+          echo "dns_subdomain=$(terraform output -raw dns_subdomain)" >> $GITHUB_OUTPUT
 
       - name: Connect to AKS Cluster
         run: |
@@ -72,15 +75,18 @@ jobs:
           set -e
           sudo apt-get update && sudo apt-get install -y gettext-base
           export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+          export APP_DOMAIN="${{ steps.aks_output.outputs.dns_subdomain }}.${{ steps.aks_output.outputs.dns_zone_name }}"
           envsubst < k8s/backend/backend-deploy.yml > /tmp/backend-deploy.yml
           envsubst < k8s/frontend/ui-deploy.yml > /tmp/ui-deploy.yml
+          envsubst < k8s/backend/backend-ingress.yml > /tmp/backend-ingress.yml
+          envsubst < k8s/frontend/frontend-ingress.yml > /tmp/frontend-ingress.yml
 
       - name: Apply backend resources
         run: |
           set -e
           kubectl apply -f k8s/backend/backend-svc.yml -n dev
-          kubectl apply -f k8s/backend/backend-ingress.yml -n dev
           kubectl apply -f /tmp/backend-deploy.yml -n dev
+          kubectl apply -f /tmp/backend-ingress.yml -n dev
           kubectl apply -f k8s/backend/backend-hpa.yml -n dev
 
       - name: Apply frontend resources
@@ -89,8 +95,23 @@ jobs:
           kubectl apply -f k8s/frontend/ui-configmap.yml -n dev
           kubectl apply -f k8s/frontend/frontend-clusterip.yml -n dev
           kubectl apply -f /tmp/ui-deploy.yml -n dev
-          kubectl apply -f k8s/frontend/frontend-ingress.yml -n dev
+          kubectl apply -f /tmp/frontend-ingress.yml -n dev
           kubectl apply -f k8s/frontend/frontend-hpa.yml -n dev
+
+      - name: Map domain to Ingress IP (Azure DNS A record)
+        run: |
+          set -e
+          APP_DOMAIN="${{ steps.aks_output.outputs.dns_subdomain }}.${{ steps.aks_output.outputs.dns_zone_name }}"
+          INGRESS_IP=$(kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "Ingress IP: $INGRESS_IP"
+          echo "FQDN: $APP_DOMAIN"
+
+          if az network dns record-set a show -g "${{ steps.aks_output.outputs.dns_zone_rg }}" -z "${{ steps.aks_output.outputs.dns_zone_name }}" -n "${{ steps.aks_output.outputs.dns_subdomain }}" >/dev/null 2>&1; then
+            az network dns record-set a update -g "${{ steps.aks_output.outputs.dns_zone_rg }}" -z "${{ steps.aks_output.outputs.dns_zone_name }}" -n "${{ steps.aks_output.outputs.dns_subdomain }}" --set "aRecords=[]"
+          else
+            az network dns record-set a create -g "${{ steps.aks_output.outputs.dns_zone_rg }}" -z "${{ steps.aks_output.outputs.dns_zone_name }}" -n "${{ steps.aks_output.outputs.dns_subdomain }}" --ttl 60
+          fi
+          az network dns record-set a add-record -g "${{ steps.aks_output.outputs.dns_zone_rg }}" -z "${{ steps.aks_output.outputs.dns_zone_name }}" -n "${{ steps.aks_output.outputs.dns_subdomain }}" -a "$INGRESS_IP"
 
       
       - name: Apply monitoring resources (Grafana datasource + dashboard)
