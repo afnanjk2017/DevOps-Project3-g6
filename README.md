@@ -1,6 +1,6 @@
-## Burger Builder – CI/CD, Infrastructure, and Repository Structure
+## Burger Builder – CI/CD and Repo Overview
 
-This repository implements a full-stack Burger Builder app with automated CI/CD on GitHub Actions.
+This repo contains the Burger Builder app and everything to build, provision, and deploy it using GitHub Actions. Inside you'll find the backend and frontend code, Terraform for Azure, Kubernetes manifests for AKS, and workflows to automate the whole pipeline.
 
 
 ### Repository Structure
