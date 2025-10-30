@@ -2,6 +2,11 @@
 
 This repo contains the Burger Builder app and everything to build, provision, and deploy it using GitHub Actions. Inside you'll find the backend and frontend code, Terraform for Azure, Kubernetes manifests for AKS, and workflows to automate the whole pipeline.
 
+## GitHub Actions Workflows
+
+This project is a modern, full-stack Burger Builder application designed to showcase DevOps best practices from code to cloud. It features a Spring Boot backend for handling all RESTful API requests related to burger ingredients, carts, and orders, and a responsive React frontend built with Vite and TypeScript that serves an engaging user experience. All code is containerized for portability, using Docker, and Kubernetes manifests are provided for scalable deployment on Azure Kubernetes Service (AKS).
+Infrastructure is fully managed as code using Terraform, which provisions Azure resources such as managed Kubernetes clusters, secure networking, and a cloud database. Continuous Integration and Continuous Deployment (CI/CD) are fully automated through GitHub Actions workflows that handle code building, image publishing, infrastructure provisioning, and manifest deployment without manual intervention.
+The repository is neatly organized: backend/ holds the Java API, frontend/ the React app, infra/ Terraform modules, k8s/ Kubernetes resources, and .github/workflows/ the automation pipelines. With the correct secrets set, any contributor can use GitHub workflows to deploy, update, or audit the whole stack via UI or CLI, making this repo an excellent starting point or reference for cloud-native DevOps automation, microservices deployment, and infrastructure-as-code on Azure.
 
 ### Repository Structure
 - `backend/`: Spring Boot API source, tests, and `Dockerfile`.
